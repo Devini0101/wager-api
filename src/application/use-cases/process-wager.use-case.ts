@@ -29,7 +29,7 @@ export class ProcessWagerUseCase {
 
     async execute(command: ProcessWagerCommand): Promise<WagerTransaction> {
         // main database transaction
-        return this.em.transactional<WagerTransaction>(async (txEm): Promise<WagerTransaction> => {
+        const result = await this.em.transactional<WagerTransaction>(async (txEm) => {
             if (command.messageId && command.consumerName) {
                 const inbox = InboxMessage.receive({
                 messageId: command.messageId,
@@ -133,5 +133,7 @@ export class ProcessWagerUseCase {
 
             return wagerTx as unknown as WagerTransaction;
         }});
+
+        return result as WagerTransaction;
     }
 }

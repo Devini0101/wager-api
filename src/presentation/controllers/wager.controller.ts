@@ -23,7 +23,7 @@ export class WagerController {
         const payloadHash = generateCanonicalHash(dto);
 
         try {
-            // Repassa o comando para nossa camada de aplicação (Use Case)
+            //repass the command into use case
             const transaction = await this.processWagerUseCase.execute({
                 ...dto,
                 idempotencyKey,
@@ -35,7 +35,7 @@ export class WagerController {
                 throw new UnprocessableEntityException({ transactionId: transaction.id, status: transaction.status, failureCode: transaction.failureCode});
             }
 
-            // Sucesso! Retorna o contrato exigido pelo desafio
+            // success, returns the contract
             return {
                 transactionId: transaction.id,
                 status: transaction.status,
