@@ -4,11 +4,12 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { MikroOrmModule } from '@mikro-orm/nestjs';
 import mikroOrmConfig from './mikro-orm.config';
+import { WagerModule } from './wager.module';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
-
 @Module({
   imports: [
+
     // Distributed tracing, auto-correlated logs, request/job metrics, error
     // telemetry, alarms, and more — out of the box. Sign up at https://observe.nestjs.com,
     // then run `npx @nestjs/observe link` to write your key pair into .env.
@@ -18,6 +19,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
       serviceId: 'wager-api',
     }),
     MikroOrmModule.forRoot(mikroOrmConfig),
+    WagerModule,
   ],
   controllers: [AppController],
   providers: [AppService],

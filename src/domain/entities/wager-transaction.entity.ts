@@ -123,6 +123,9 @@ export class WagerTransaction {
         );
     }
 
+    get currency(): string {
+        return this.money.currency;
+    }
     get status(): WagerTransactionStatus { return this._status; }
     get referenceTransactionId(): string | undefined { return this._referenceTransactionId; }
     get failureCode(): FailureCode | undefined { return this._failureCode; }

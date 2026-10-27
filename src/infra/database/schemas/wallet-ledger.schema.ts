@@ -12,9 +12,10 @@ export const WalletLedgerSchema = new EntitySchema<WalletLedgerEntry>({
         walletId: { type: 'uuid', fieldName: 'wallet_id' },
         transactionId: { type: 'uuid', fieldName: 'transaction_id' },
         direction: { type: 'string' },
-        money: { type: MoneyType, fieldName: 'amount', customType: new MoneyType() },
-        balanceBefore: { type: MoneyType, fieldName: 'balance_before_amount', customType: new MoneyType() },
-        balanceAfter: { type: MoneyType, fieldName: 'balance_after_amount', customType: new MoneyType() },
+        currency: { type: 'string' },
+        money: { type: 'string', fieldName: 'amount', customType: new MoneyType() },
+        balanceBefore: { type: 'string', fieldName: 'balance_before_amount', customType: new MoneyType() },
+        balanceAfter: { type: 'string', fieldName: 'balance_after_amount', customType: new MoneyType() },
         createdAt: { type: 'Date', fieldName: 'created_at' }
     } as any,
 })

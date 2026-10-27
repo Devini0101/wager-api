@@ -15,8 +15,10 @@ export class CreateWalletUseCase {
             return await this.em.transactional<Wallet>(async (txEm) => {
                 const money = Money.from(initialBalanceDto);
                 const walletId = uuidv4();
+
                 const wallet = Wallet.open({ id: walletId, playerId, initialBalance: money });
                 txEm.persist(wallet);
+                await txEm.flush(); // persists the wallet to be able to reference it in the ledger entry
 
                 // balance > 0, creates history of the opening deposit (OPENING)
                 if (money.isPositive()) {
@@ -36,6 +38,7 @@ export class CreateWalletUseCase {
                     });
                     wagerTx.markProcessed(undefined, new Date());
                     txEm.persist(wagerTx);
+                    await txEm.flush();
 
                     const ledgerEntry = WalletLedgerEntry.create({
                         id: uuidv4(),

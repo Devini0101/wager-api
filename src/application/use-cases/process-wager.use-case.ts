@@ -28,55 +28,59 @@ export class ProcessWagerUseCase {
     constructor(private readonly em: EntityManager) {}
 
     async execute(command: ProcessWagerCommand): Promise<WagerTransaction> {
-        // main database transaction
+        // Main database transaction
         const result = await this.em.transactional<WagerTransaction>(async (txEm) => {
+            // Inbox Pattern
             if (command.messageId && command.consumerName) {
-                const inbox = InboxMessage.receive({
-                messageId: command.messageId,
-                consumerName: command.consumerName,
-                payloadHash: command.payloadHash,
-            });
+                const existingInbox = await txEm.findOne(InboxMessage, {
+                    messageId: command.messageId,
+                    consumerName: command.consumerName,
+                });
 
-            try {
-                txEm.persist(inbox);
-                await txEm.flush(); //try persist, if fails it is a queue replay
-            } catch (error) {
-                if (error instanceof UniqueConstraintViolationException) {
+                if (existingInbox) {
                     const existingTx = await txEm.findOne(WagerTransaction, {
                         providerId: command.providerId,
-                        externalTransactionId: command.externalTransactionId
+                        externalTransactionId: command.externalTransactionId,
                     });
                     if (!existingTx) throw new Error("Inbox replay mismatch");
-                    return existingTx as unknown as WagerTransaction;;
+                    return existingTx;
                 }
-                throw error
+
+                const inbox = InboxMessage.receive({
+                    messageId: command.messageId,
+                    consumerName: command.consumerName,
+                    payloadHash: command.payloadHash,
+                });
+                txEm.persist(inbox);
             }
 
-            //verifies idempotency
+            // idempotency Check
             const existingTx = await txEm.findOne(WagerTransaction, {
                 providerId: command.providerId,
                 idempotencyKey: command.idempotencyKey,
             });
 
             if (existingTx) {
-                if (!existingTx.matchesPayload(command.payloadHash)){
-                    // diff payload for the same key, HTTP 409
+                if (!existingTx.matchesPayload(command.payloadHash)) {
+                    // Diff payload for the same key, HTTP 409
                     throw new Error('IDEMPOTENCY_PAYLOAD_MISMATCH');
                 }
-                return existingTx as unknown as WagerTransaction;
+                return existingTx;
             }
 
-            //searches wallet w pessimistic look
-            const wallet = await txEm.findOne(Wallet,
+            // Lock Wallet, Pessimistic Write
+            const wallet = await txEm.findOne(
+                Wallet,
                 { id: command.walletId, playerId: command.playerId },
                 { lockMode: LockMode.PESSIMISTIC_WRITE }
             );
 
             if (!wallet) throw new Error('Wallet not found');
 
-            // insantiate bussiness tx
-            const wagerTx = WagerTransaction.create({id: uuidv4(), ...command,});
+            // instantiate business transaction
+            const wagerTx = WagerTransaction.create({ id: uuidv4(), ...command });
             txEm.persist(wagerTx);
+            await txEm.flush(); // persist the transaction to be able to reference it in the ledger entry
 
             const balanceBefore = wallet.balance;
 
@@ -86,31 +90,29 @@ export class ProcessWagerUseCase {
                 } else if (command.kind === WagerTransactionKind.Win) {
                     wallet.credit(command.money);
                 }
-                // TODO Lógica de Refund/Rollback exige buscar a referência, fica para refinamento depois
+                // TODO: Refund/Rollback logic requires fetching original tx reference
                 wagerTx.markProcessed(undefined, new Date());
             } catch (domainError: any) {
-                // if not enough balance, marks as REJECTED and finishes
-                wagerTx.reject(domainError.message); // Failure mapped to FailureCode
-                // do not needs an update as nothing effectivelly changed
-                return wagerTx as unknown as WagerTransaction;
+                // Insufficient balance or domain rule violation: mark REJECTED and save transaction record
+                wagerTx.reject(domainError.message);
+                return wagerTx;
             }
 
             txEm.persist(wallet);
 
-            // creates ledger for later balance and history reproduction
+            // create Ledger entry and enqueue Outbox Event
             if (wagerTx.affectsBalance()) {
                 const ledgerEntry = WalletLedgerEntry.create({
-                    id : uuidv4(),
+                    id: uuidv4(),
                     walletId: wallet.id,
                     transactionId: wagerTx.id,
                     direction: wagerTx.ledgerDirectionFor(),
                     money: wagerTx.money,
                     balanceBefore: balanceBefore,
-                    balanceAfter: wallet.balance
+                    balanceAfter: wallet.balance,
                 });
                 txEm.persist(ledgerEntry);
 
-                //Outbox event always ACID on the same SQL tx
                 const outboxEvent = OutboxMessage.enqueue({
                     eventId: uuidv4(),
                     aggregateId: wallet.id,
@@ -126,14 +128,14 @@ export class ProcessWagerUseCase {
                         balanceBefore: balanceBefore.toJSON(),
                         balanceAfter: wallet.balance.toJSON(),
                         walletVersion: wallet.version,
-                    }
+                    },
                 } as any);
                 txEm.persist(outboxEvent);
             }
 
-            return wagerTx as unknown as WagerTransaction;
-        }});
+            return wagerTx;
+        });
 
-        return result as WagerTransaction;
+        return result;
     }
 }

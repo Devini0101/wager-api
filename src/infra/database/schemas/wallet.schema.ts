@@ -31,12 +31,12 @@ export const WalletSchema = new EntitySchema<Wallet>({
         playerId: { type: 'string', fieldName: 'player_id' },
         currency: { type: 'string' },
         _balance: {
-            type: MoneyType,
+            type: 'string',
             fieldName: 'balance',
             //sends line into context, so the moneyType know the currency
             customType: new MoneyType()
         },
-        _version: { type: 'number', fieldName: 'version', version: true }, // optimistic lock support (mesmo usando pessimistic, é bom manter a version syncada)
+        _version: { type: 'number', fieldName: 'version'},
         createdAt: { type: 'Date', fieldName: 'created_at' },
         _updatedAt: { type: 'Date', fieldName: 'updated_at', onUpdate: () => new Date() },
     } as any,

@@ -7,8 +7,8 @@ const config: Options = {
   password: process.env.POSTGRES_PASSWORD || 'wager_password',
   host: process.env.POSTGRES_HOST || 'localhost',
   port: parseInt(process.env.POSTGRES_PORT || '5432', 10),
-  entities: ['./dist/**/*.entity.js'],
-  entitiesTs: ['./src/**/*.entity.ts'],
+  entities: ['./dist/infra/database/schemas/*.schema.js'],
+  entitiesTs: ['./src/infra/database/schemas/*.schema.ts'],
   migrations: {
     path: './src/migrations',
     transactional: true,

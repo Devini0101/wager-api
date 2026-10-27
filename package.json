@@ -22,7 +22,7 @@
     "db:migrate": "mikro-orm migration:up"
   },
   "dependencies": {
-    "@aws-sdk/client-sqs": "^3.1156.0",
+    "@aws-sdk/client-sqs": "^3.1157.0",
     "@mikro-orm/cli": "^7.2.5",
     "@mikro-orm/core": "^7.2.5",
     "@mikro-orm/migrations": "^7.2.5",
@@ -48,7 +48,7 @@
     "@types/decimal.js": "^0.0.32",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.6.5",
     "@types/supertest": "^7.0.0",
     "@types/uuid": "^10.0.0",
     "jest": "^30.0.0",
@@ -61,6 +61,7 @@
     "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.23.15",
     "typescript": "^6.0.2"
   },
   "mikro-orm": {

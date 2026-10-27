@@ -39,6 +39,10 @@ export class WalletLedgerEntry {
         public readonly createdAt: Date,
     ) {}
 
+    get currency(): string {
+        return this.money.currency;
+    }
+
     static create(props: CreateLedgerEntryProps): WalletLedgerEntry {
         const entry = new WalletLedgerEntry(
         props.id,

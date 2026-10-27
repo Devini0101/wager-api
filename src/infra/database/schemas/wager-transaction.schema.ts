@@ -4,7 +4,7 @@ import { MoneyType } from "./wallet.schema";
 
 export const WagerTransactionSchema = new EntitySchema<WagerTransaction>({
     class: WagerTransaction as any,
-    tableName: 'wager_transaction',
+    tableName: 'wager_transactions',
     //uses rehydrate
     forceConstructor: false,
     properties: {
@@ -18,7 +18,8 @@ export const WagerTransactionSchema = new EntitySchema<WagerTransaction>({
         roundId: { type: 'string', fieldName: 'round_id' },
         gameId: { type: 'string', fieldName: 'game_id' },
         kind: { type: 'string' },
-        money: { type: MoneyType, fieldName: 'amount', customType: new MoneyType() },
+        currency: { type: 'string' },
+        money: { type: 'string', fieldName: 'amount', customType: new MoneyType() },
         referenceExternalTransactionId: { type: 'string', fieldName: 'reference_external_transaction_id', nullable: true },
         _referenceTransactionId: { type: 'uuid', fieldName: 'reference_transaction_id', nullable: true },
         _status: { type: 'string', fieldName: 'status' },
