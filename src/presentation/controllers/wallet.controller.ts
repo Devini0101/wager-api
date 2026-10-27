@@ -4,7 +4,6 @@ import { MoneyDto } from "../dtos/create-wager-transaction.dto";
 import { Body, Controller, Get, NotFoundException, Param, Post, Query } from "@nestjs/common";
 import { CreateWalletUseCase } from "../../application/use-cases/create-wallet.use-case";
 import { EntityManager } from "@mikro-orm/postgresql";
-import { BADFLAGS } from "dns";
 import { Wallet } from "../../domain/entities/wallet.entity";
 import { WalletLedgerEntry } from "../../domain/entities/wallet-ledger-entry.entity";
 
@@ -86,6 +85,33 @@ export class WalletController {
                 createdAt: entry.createdAt.toISOString(),
             })),
             nextCursor
+        };
+    }
+
+    @Get(':walletId/reconciliation')
+    async reconcile(@Param('walletId') walletId : string) {
+        const wallet = await this.em.findOne(Wallet, { id : walletId});
+        if (!wallet) throw new NotFoundException('Wallet not found');
+
+        const entries = await this.em.find(WalletLedgerEntry, {walletId});
+
+        // sum credits and sub debits to recreate the real balance
+        let calculated = 0;
+        for (const e of entries) {
+            const val = parseFloat(e.money.amount);
+            if (e.direction === 'CREDIT') calculated += val;
+            else calculated -= val;
+        }
+        const stored = parseFloat(wallet.balance.amount);
+        const consistent = Math.abs(stored - calculated) < 0.01;
+
+        return {
+        walletId,
+        storedBalance: wallet.balance.toJSON(),
+        calculatedBalance: { amount: calculated.toFixed(2), currency: wallet.balance.currency },
+        difference: { amount: Math.abs(stored - calculated).toFixed(2), currency: wallet.balance.currency },
+        consistent,
+        checkedEntries: entries.length,
         };
     }
 }

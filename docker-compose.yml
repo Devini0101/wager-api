@@ -20,16 +20,15 @@ services:
 
   localstack:
     image: localstack/localstack:latest
-    container_name: wager_localstack
     ports:
       - "4566:4566"
     environment:
-      - SERVICES=sqs
+      - SERVICES=sqs,sns
       - AWS_DEFAULT_REGION=us-east-1
       - EDGE_PORT=4566
     volumes:
-      # pra executar o script de inicialização das filas automaticamente
-      - ./scripts/localstack-init.sh:/etc/localstack/init/ready.d/init.sh
+      - "${LOCALSTACK_VOLUME_DIR:-./volume}:/var/lib/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
 
 volumes:
   pgdata:

@@ -1,15 +1,72 @@
-import { BadRequestException, Body, ConflictException, Controller, Headers, HttpCode, Post, UnprocessableEntityException } from "@nestjs/common";
+import { BadRequestException, Body, ConflictException, Controller, Get, Headers, HttpCode, NotFoundException, Param, Post, UnprocessableEntityException } from "@nestjs/common";
 import { ProcessWagerUseCase } from "../../application/use-cases/process-wager.use-case";
 import { CreateWagerTransactionDto } from "../dtos/create-wager-transaction.dto";
 import { generateCanonicalHash } from "../../application/utils/hash.util";
-import { WagerTransactionStatus } from "../../domain/entities/wager-transaction.entity";
+import { WagerTransaction, WagerTransactionKind, WagerTransactionStatus } from "../../domain/entities/wager-transaction.entity";
 import { Money } from '../../domain/value-objects/money.vo';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, ValidateNested } from "class-validator";
+import { Type } from "class-transformer";
+import { EntityManager } from "@mikro-orm/sql";
 
-@Controller('wagering')
+export class MoneyDto {
+    @IsString()
+    @IsNotEmpty()
+    amount: string;
+    
+    @IsString() 
+    @IsNotEmpty() 
+    currency: string;
+}
+
+export class CreateWagerDto {
+    @IsString()
+    @IsNotEmpty() 
+    providerId: string;
+    
+    @IsString()
+    @IsNotEmpty()
+    externalTransactionId: string;
+    
+    @IsString()
+    @IsNotEmpty()
+    playerId: string;
+    
+    @IsString()
+    @IsNotEmpty()
+    walletId: string;
+    
+    @IsString()
+    @IsNotEmpty()
+    roundId: string;
+    
+    @IsString()
+    @IsNotEmpty()
+    gameId: string;
+    
+    @IsEnum(WagerTransactionKind) 
+    kind: WagerTransactionKind;
+  
+    @ValidateNested()
+    @Type(() => MoneyDto)
+    money: MoneyDto;
+  
+    @IsString()
+    @IsOptional()
+    messageId?: string;
+  
+    @IsString()
+    @IsOptional()
+    consumerName?: string;
+}
+
+@Controller()
 export class WagerController {
-    constructor(private readonly processWagerUseCase: ProcessWagerUseCase) {}
+    constructor(
+        private readonly processWagerUseCase: ProcessWagerUseCase,
+        private readonly em: EntityManager,
+    ) {}
 
-    @Post('transactions')
+    @Post('wagering/transactions')
     @HttpCode(200)
     async createTransaction(
         @Headers('idempotency-key') idempotencyKey: string,
@@ -39,7 +96,7 @@ export class WagerController {
             return {
                 transactionId: transaction.id,
                 status: transaction.status,
-                // alterar o UseCase para devolver a Wallet e a Transação juntas
+                balance : {'amount' : transaction.money.amount , 'currency' : transaction.money.currency },
                 idempotentReplay: transaction.createdAt.getTime() < new Date().getTime() - 1000 //identify if was a replay
             };
         } catch (error: any) {
@@ -52,5 +109,40 @@ export class WagerController {
             // another err gets an HTTP 500
             throw error;
         }
+    }
+
+    @Get('wagering/transactions/:transactionId')
+    async getTransactionById(@Param('transactionId') transactionId: string) {
+        const tx = await this.em.findOne(WagerTransaction, { id: transactionId });
+
+        if (!tx) throw new NotFoundException('Transaction not found');
+
+        return {
+            transactionId: tx.id,
+            providerId: tx.providerId,
+            externalTransactionId: tx.externalTransactionId,
+            status: tx.status,
+            kind: tx.kind,
+            money: tx.money.toJSON(),
+            createdAt: tx.createdAt,
+        };
+    }
+
+    @Get('providers/:providerId/wagering/transactions/:externalTransactionId')
+    async getTransactionByExternal(
+        @Param('providerId') providerId: string,
+        @Param('externalTransactionId') externalTransactionId: string,
+    ) {
+        const tx = await this.em.findOne(WagerTransaction, { providerId, externalTransactionId });
+        if (!tx) throw new NotFoundException('Transaction not found');
+        return {
+            transactionId: tx.id,
+            providerId: tx.providerId,
+            externalTransactionId: tx.externalTransactionId,
+            status: tx.status,
+            kind: tx.kind,
+            money: tx.money.toJSON(),
+            createdAt: tx.createdAt,
+        };
     }
 }

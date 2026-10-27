@@ -5,6 +5,9 @@ import { AppService } from './app.service';
 import { MikroOrmModule } from '@mikro-orm/nestjs';
 import mikroOrmConfig from './mikro-orm.config';
 import { WagerModule } from './wager.module';
+import { ProcessWagerUseCase } from './application/use-cases/process-wager.use-case';
+import { CreateWalletUseCase } from './application/use-cases/create-wallet.use-case';
+import { SqsWagerConsumer } from './presentation/consumers/sqs-wager.consumer';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 @Module({
@@ -22,6 +25,6 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     WagerModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, ProcessWagerUseCase, CreateWalletUseCase, SqsWagerConsumer],
 })
 export class AppModule {}
