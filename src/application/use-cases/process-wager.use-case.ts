@@ -3,9 +3,10 @@ import { CreateWagerTransactionProps, WagerTransaction, WagerTransactionKind } f
 import { EntityManager, LockMode, UniqueConstraintViolationException } from "@mikro-orm/postgresql";
 import { InboxMessage } from "../../domain/entities/inbox-message.entity";
 import { Wallet } from "../../domain/entities/wallet.entity";
-import { WalletLedgerEntry } from "../../domain/entities/wallet-ledger-entry.entity";
+import { LedgerDirection, WalletLedgerEntry } from "../../domain/entities/wallet-ledger-entry.entity";
 import { OutboxMessage } from "../../domain/entities/outbox-message.entity";
 import { v4 as uuidv4 } from 'uuid';
+import { Money } from "../../domain/value-objects/money.vo";
 
 export interface ProcessWagerCommand {
     messageId?: string; // Vem preenchido se a origem for SQS
@@ -85,12 +86,30 @@ export class ProcessWagerUseCase {
             const balanceBefore = wallet.balance;
 
             try {
-                if (command.kind === WagerTransactionKind.Bet) {
-                    wallet.debit(command.money);
-                } else if (command.kind === WagerTransactionKind.Win) {
+                let balanceAfter : Money;
+                const isCredit = command.kind == WagerTransactionKind.Opening || command.kind == WagerTransactionKind.Win || command.kind == WagerTransactionKind.Refund   
+
+                if (isCredit) {
+                    balanceAfter = balanceBefore.add(command.money);
                     wallet.credit(command.money);
+                } else {
+                    balanceAfter = balanceBefore.subtract(command.money);
+                    wallet.debit(command.money);
                 }
-                // TODO: Refund/Rollback logic requires fetching original tx reference
+                const direction = isCredit ? LedgerDirection.Credit : LedgerDirection.Debit;
+
+                const ledger = WalletLedgerEntry.create({
+                    id: uuidv4(),
+                    walletId: wallet.id,
+                    transactionId: wagerTx.id,
+                    direction: direction,
+                    money: command.money,
+                    balanceBefore,
+                    balanceAfter,
+                    createdAt: new Date(),
+                })
+
+                txEm.persist(ledger);
                 wagerTx.markProcessed(undefined, new Date());
             } catch (domainError: any) {
                 // Insufficient balance or domain rule violation: mark REJECTED and save transaction record

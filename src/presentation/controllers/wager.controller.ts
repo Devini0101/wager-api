@@ -6,7 +6,7 @@ import { WagerTransaction, WagerTransactionKind, WagerTransactionStatus } from "
 import { Money } from '../../domain/value-objects/money.vo';
 import { IsEnum, IsNotEmpty, IsOptional, IsString, ValidateNested } from "class-validator";
 import { Type } from "class-transformer";
-import { EntityManager } from "@mikro-orm/sql";
+import { EntityManager } from "@mikro-orm/postgresql";
 
 export class MoneyDto {
     @IsString()
@@ -79,6 +79,13 @@ export class WagerController {
         //gets dto and generates hash
         const payloadHash = generateCanonicalHash(dto);
 
+        // verifies idempotency by SQL RAW without relying on cache
+        const checkReplayQuery = await this.em.getConnection().execute(
+            `SELECT id FROM wager_transactions WHERE provider_id = ? AND idempotency_key = ?`,
+            [dto.providerId, idempotencyKey]
+        );
+        const isReplay = checkReplayQuery.length > 0;
+
         try {
             //repass the command into use case
             const transaction = await this.processWagerUseCase.execute({
@@ -92,12 +99,26 @@ export class WagerController {
                 throw new UnprocessableEntityException({ transactionId: transaction.id, status: transaction.status, failureCode: transaction.failureCode});
             }
 
-            // success, returns the contract
+            const walletQuery = await this.em.getConnection().execute(
+                `SELECT balance FROM wallets WHERE id = ?`,
+                [dto.walletId]
+            );
+            
+            let finalBalanceMoney = Money.zero(dto.money.currency);
+            
+            if (walletQuery.length > 0) {
+                // Instancia o objeto Money com o retorno cru do banco
+                finalBalanceMoney = Money.from({ 
+                    amount: walletQuery[0].balance, 
+                    currency: dto.money.currency 
+                });
+            }
+
             return {
                 transactionId: transaction.id,
                 status: transaction.status,
-                balance : {'amount' : transaction.money.amount , 'currency' : transaction.money.currency },
-                idempotentReplay: transaction.createdAt.getTime() < new Date().getTime() - 1000 //identify if was a replay
+                balance: finalBalanceMoney.toJSON(),
+                idempotentReplay: isReplay
             };
         } catch (error: any) {
             if (error.message === 'IDEMPOTENCY_PAYLOAD_MISMATCH') {

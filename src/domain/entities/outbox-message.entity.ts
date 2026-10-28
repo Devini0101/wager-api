@@ -54,4 +54,16 @@ export class OutboxMessage {
     get attempts(): number { return this._attempts; }
     get nextAttemptAt(): Date | undefined { return this._nextAttemptAt; }
     get publishedAt(): Date | undefined { return this._publishedAt; }
+
+    public markPublished(at: Date): void {
+        this._publishedAt = at;
+    }
+
+    public scheduleRetry(now: Date): void {
+        this._attempts += 1;
+        
+        // Backoff retry strategy: 5 seconds * number of attempts
+        const backoffMs = this._attempts * 5000; 
+        this._nextAttemptAt = new Date(now.getTime() + backoffMs);
+    }
 }

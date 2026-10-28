@@ -5,30 +5,22 @@ services:
     image: postgres:16-alpine
     container_name: wager_postgres
     environment:
-      POSTGRES_USER: wager_user
-      POSTGRES_PASSWORD: wager_password
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
       POSTGRES_DB: wager_db
     ports:
       - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U wager_user -d wager_db"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   localstack:
-    image: localstack/localstack:latest
+    image: localstack/localstack:2.3.0
+    container_name: wager_localstack
     ports:
       - "4566:4566"
     environment:
-      - SERVICES=sqs,sns
+      - SERVICES=sqs
       - AWS_DEFAULT_REGION=us-east-1
-      - EDGE_PORT=4566
-    volumes:
-      - "${LOCALSTACK_VOLUME_DIR:-./volume}:/var/lib/localstack"
-      - "/var/run/docker.sock:/var/run/docker.sock"
-
-volumes:
-  pgdata:

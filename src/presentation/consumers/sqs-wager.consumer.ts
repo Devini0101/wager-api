@@ -14,16 +14,19 @@ export class SqsWagerConsumer implements OnModuleInit {
 
     constructor(private readonly processWagerUseCase: ProcessWagerUseCase) {
         this.sqsClient = new SQSClient({
-            region: process.env.AWS_REGION || 'us-east-1',
+            region: 'us-east-1',
             endpoint: process.env.AWS_ENDPOINT || 'http://localhost:4566',
-            credentials: { 
-                accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'test', 
-                secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'test' 
-            },
+            credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
+            customUserAgent: 'localstack-client',
         });
     }
 
     onModuleInit() {
+        if (process.env.SQS_ENABLED === 'false') {
+            this.logger.log('Consumo SQS desativado via configuração (SQS_ENABLED=false).');
+            return;
+        }
+
         this.logger.log(`Iniciando consumo da SQS: ${this.queueUrl}`);
         this.poll();
     }
@@ -42,7 +45,10 @@ export class SqsWagerConsumer implements OnModuleInit {
                         await this.processMessage(message);
                     }
                 }
-            } catch (error) {
+            } catch (error : any) {
+                if (error.message && error.message.includes('Unexpected token')) {
+                    return;
+                }
                 //if theres no queue, warn about it, but do not turns the api down
                 this.logger.error('Erro ao ler fila SQS. Tentando novamente em 5s...', error);
                 await new Promise(resolve => setTimeout(resolve, 5000)); 

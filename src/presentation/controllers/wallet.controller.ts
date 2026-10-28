@@ -6,6 +6,7 @@ import { CreateWalletUseCase } from "../../application/use-cases/create-wallet.u
 import { EntityManager } from "@mikro-orm/postgresql";
 import { Wallet } from "../../domain/entities/wallet.entity";
 import { WalletLedgerEntry } from "../../domain/entities/wallet-ledger-entry.entity";
+import { Money } from "../../domain/value-objects/money.vo";
 
 export class CreateWalletDto {
     @IsString()
@@ -89,29 +90,42 @@ export class WalletController {
     }
 
     @Get(':walletId/reconciliation')
-    async reconcile(@Param('walletId') walletId : string) {
-        const wallet = await this.em.findOne(Wallet, { id : walletId});
+    async reconcile(@Param('walletId') walletId: string) {
+        const wallet = await this.em.findOne(Wallet, { id: walletId });
         if (!wallet) throw new NotFoundException('Wallet not found');
 
-        const entries = await this.em.find(WalletLedgerEntry, {walletId});
+        const entries = await this.em.find(WalletLedgerEntry, { walletId });
 
-        // sum credits and sub debits to recreate the real balance
-        let calculated = 0;
+        let calculatedBalance = Money.zero(wallet.balance.currency);
+
         for (const e of entries) {
-            const val = parseFloat(e.money.amount);
-            if (e.direction === 'CREDIT') calculated += val;
-            else calculated -= val;
+            if (e.direction === 'CREDIT') {
+                calculatedBalance = calculatedBalance.add(e.money);
+            } else {
+                calculatedBalance = calculatedBalance.subtract(e.money);
+            }
         }
-        const stored = parseFloat(wallet.balance.amount);
-        const consistent = Math.abs(stored - calculated) < 0.01;
+
+        const storedBalance = wallet.balance;
+
+        //verifies consistency of what was stored and what was calculated
+        const consistent = storedBalance.equals(calculatedBalance);
+
+        //calculates the diff
+        let difference: Money;
+        if (storedBalance.isLessThan(calculatedBalance)) {
+            difference = calculatedBalance.subtract(storedBalance);
+        } else {
+            difference = storedBalance.subtract(calculatedBalance);
+        }
 
         return {
-        walletId,
-        storedBalance: wallet.balance.toJSON(),
-        calculatedBalance: { amount: calculated.toFixed(2), currency: wallet.balance.currency },
-        difference: { amount: Math.abs(stored - calculated).toFixed(2), currency: wallet.balance.currency },
-        consistent,
-        checkedEntries: entries.length,
+            walletId,
+            storedBalance: storedBalance.toJSON(),
+            calculatedBalance: calculatedBalance.toJSON(),
+            difference: difference.toJSON(),
+            consistent,
+            checkedEntries: entries.length,
         };
     }
 }

@@ -8,6 +8,7 @@ import { WagerModule } from './wager.module';
 import { ProcessWagerUseCase } from './application/use-cases/process-wager.use-case';
 import { CreateWalletUseCase } from './application/use-cases/create-wallet.use-case';
 import { SqsWagerConsumer } from './presentation/consumers/sqs-wager.consumer';
+import { ScheduleModule } from '@nestjs/schedule';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 @Module({
@@ -23,6 +24,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     }),
     MikroOrmModule.forRoot(mikroOrmConfig),
     WagerModule,
+    ScheduleModule.forRoot()
   ],
   controllers: [AppController],
   providers: [AppService, ProcessWagerUseCase, CreateWalletUseCase, SqsWagerConsumer],
