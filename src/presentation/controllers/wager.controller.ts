@@ -70,7 +70,7 @@ export class WagerController {
     @HttpCode(200)
     async createTransaction(
         @Headers('idempotency-key') idempotencyKey: string,
-        @Body() dto: CreateWagerTransactionDto,
+        @Body() dto: CreateWagerDto,
     ) {
         if (!idempotencyKey) {
             throw new BadRequestException('Header Idempotency-Key is required');
@@ -96,7 +96,11 @@ export class WagerController {
             });
 
             if (transaction.status === WagerTransactionStatus.Rejected) {
-                throw new UnprocessableEntityException({ transactionId: transaction.id, status: transaction.status, failureCode: transaction.failureCode});
+                throw new UnprocessableEntityException({
+                    transactionId: transaction.id,
+                    status: transaction.status,
+                    failureCode: transaction.failureCode || 'INSUFFICIENT_BALANCE',
+                });
             }
 
             const walletQuery = await this.em.getConnection().execute(
@@ -121,6 +125,10 @@ export class WagerController {
                 idempotentReplay: isReplay
             };
         } catch (error: any) {
+            if (error instanceof UnprocessableEntityException || error instanceof ConflictException || error instanceof BadRequestException) {
+                throw error;
+            }
+
             if (error.message === 'IDEMPOTENCY_PAYLOAD_MISMATCH') {
                 throw new ConflictException('Same idempotency key with different payload');
             }

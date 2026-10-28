@@ -84,37 +84,42 @@ export class ProcessWagerUseCase {
             await txEm.flush(); // persist the transaction to be able to reference it in the ledger entry
 
             const balanceBefore = wallet.balance;
-
+            let isCredit = false;
             try {
-                let balanceAfter : Money;
-                const isCredit = command.kind == WagerTransactionKind.Opening || command.kind == WagerTransactionKind.Win || command.kind == WagerTransactionKind.Refund   
+                isCredit = command.kind == WagerTransactionKind.Opening || 
+                           command.kind == WagerTransactionKind.Win || 
+                           command.kind == WagerTransactionKind.Refund;   
 
                 if (isCredit) {
-                    balanceAfter = balanceBefore.add(command.money);
                     wallet.credit(command.money);
                 } else {
-                    balanceAfter = balanceBefore.subtract(command.money);
-                    wallet.debit(command.money);
+                    wallet.debit(command.money); //thows error if insufficient balance
                 }
-                const direction = isCredit ? LedgerDirection.Credit : LedgerDirection.Debit;
-
-                const ledger = WalletLedgerEntry.create({
-                    id: uuidv4(),
-                    walletId: wallet.id,
-                    transactionId: wagerTx.id,
-                    direction: direction,
-                    money: command.money,
-                    balanceBefore,
-                    balanceAfter,
-                    createdAt: new Date(),
-                })
-
-                txEm.persist(ledger);
+                
                 wagerTx.markProcessed(undefined, new Date());
             } catch (domainError: any) {
-                // Insufficient balance or domain rule violation: mark REJECTED and save transaction record
-                wagerTx.reject(domainError.message);
-                return wagerTx;
+                //rejection flow
+                const failureCode = domainError.message || 'BUSINESS_RULE_VIOLATION';
+                wagerTx.reject(failureCode);
+                txEm.persist(wagerTx);
+
+                // enqueu Outbox Event for WagerTransactionRejected
+                const outboxEvent = OutboxMessage.enqueue({
+                    eventId: uuidv4(),
+                    aggregateId: wallet.id,
+                    eventType: 'WagerTransactionRejected',
+                    occurredAt: new Date(),
+                    version: 1,
+                    correlationId: wagerTx.idempotencyKey,
+                    data: {
+                        transactionId: wagerTx.id,
+                        walletId: wallet.id,
+                        failureCode: failureCode,
+                    },
+                } as any);
+                txEm.persist(outboxEvent);
+
+                return wagerTx; //return the rejected transaction
             }
 
             txEm.persist(wallet);

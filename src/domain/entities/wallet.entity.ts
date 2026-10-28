@@ -64,7 +64,7 @@ export class Wallet {
     debit(money: Money): void {
         this.assertSameCurrency(money);
         if (this._balance.isLessThan(money)) {
-            throw new Error(`Insufficient funds: balance is ${this._balance.amount}, requested ${money.amount}`);
+            throw new Error('INSUFFICIENT_BALANCE');
         }
         this._balance = this._balance.subtract(money);
         this._version += 1;
