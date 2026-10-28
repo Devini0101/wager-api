@@ -18,6 +18,7 @@ Serviço financeiro distribuído desenvolvido para o desafio da Jungle Gaming. F
 1. Subir a Infraestrutura (Postgres e LocalStack):
   ```bash
   docker compose up -d
+  ```
 
 2. Instalar dependências:
   ```bash
